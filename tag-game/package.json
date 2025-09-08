@@ -1,0 +1,17 @@
+{
+  "name": "tag-game",
+  "version": "1.0.0",
+  "description": "Juego Tag multijugador con WebSockets",
+  "main": "server/src/index.js",
+  "type": "module",
+  "scripts": {
+  "dev": "npx serve server/public",
+  "start": "npx serve server/public"
+  },
+  "keywords": ["tag", "game", "websocket", "multiplayer"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.14.2"
+  }
+}

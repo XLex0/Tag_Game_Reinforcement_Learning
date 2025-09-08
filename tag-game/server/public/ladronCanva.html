@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ladrón - Tag Game</title>
+    <link rel="stylesheet" href="plantilla.css">
+</head>
+
+<body>
+    <h1>🚨 Tag Game 🚔</h1>
+    <div class="reloj">⏱️ 30s</div>
+
+    <div id="canva"></div>
+
+    <div class="instruccion">🕶️ ¡Escapa del policía!</div>
+</body>
+
+<script src="creacionItems.js"></script>
+<script src="rules.js"></script>
+<script src="movimientoLadron.js"></script>
+<script>
+    const state = window.TagGame.creaElMapa();
+    // Timer de 30s (actualiza el .reloj si existe)
+    window.TagGame.Rules.startTimer(20, ".reloj");
+    // Arranca control del ladrón
+    window.startLadronControl(state);
+</script>
+
+
+
+
+</html>

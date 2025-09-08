@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Policía - Tag Game</title>
+    <link rel="stylesheet" href="plantilla.css">
+</head>
+
+<body>
+    <h1>🚨 Tag Game 🚔</h1>
+    <div class="reloj">⏱️ 30s</div>
+
+    <div id="canva"></div>
+
+    <div class="instruccion">👮 ¡Atrapen al ladrón!</div>
+</body>
+
+<script src="creacionItems.js"></script>
+<script src="rules.js"></script>
+<script src="movimientoPolicia.js"></script>
+<script>
+    const state = window.TagGame.creaElMapa();
+    window.TagGame.Rules.startTimer(20, ".reloj");
+    // Control dual: flechas -> policias[0], WASD -> policias[1]
+    window.startPoliciasControl(state);
+</script>
+
+</html>
