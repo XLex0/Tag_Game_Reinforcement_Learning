@@ -1,5 +1,9 @@
+// server.js
 import net from "net";
 import { reset, step, context } from "./envHeadless.js";
+
+const argPort = process.argv.find(a => /^\d+$/.test(a));
+const port = Number(process.env.PORT ?? argPort ?? 7777);
 
 const server = net.createServer(sock => {
   sock.setEncoding("utf8");
@@ -30,5 +34,7 @@ const server = net.createServer(sock => {
   });
 });
 
-server.listen(7777, "127.0.0.1", () => console.log("RL TCP on 127.0.0.1:7777"));
+server.listen(port, "127.0.0.1", () =>
+  console.log(`RL TCP on 127.0.0.1:${port}`)
+);
 export default server;

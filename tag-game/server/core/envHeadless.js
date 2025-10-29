@@ -83,8 +83,8 @@ export function context(){
       t: ENV.state.t,
       captured,
       gridSize: GRID_SIZE,
-      radii: { thief: ENV.world.agentRadiusCell, police: ENV.world.policeRadiusCell }
-      // wallsRC: ENV.world.wallsRC // destapar si necesitas mapa
+      radii: { thief: ENV.world.agentRadiusCell, police: ENV.world.policeRadiusCell },
+      wallsRC: ENV.world.wallsRC 
     }
   };
 }

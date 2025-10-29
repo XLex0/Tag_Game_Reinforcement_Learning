@@ -21,12 +21,12 @@
 <script src="rulesCore.js"></script>
 <script src="rulesUi.js"></script>
 <script src="movimientoLadron.js"></script>
+<script src="policeIA.js"></script>   <!-- NUEVO -->
 <script>
-    const state = window.TagGame.creaElMapa();
-    // Timer de 30s (actualiza el .reloj si existe)
-    window.TagGame.Rules.startTimer(20, ".reloj");
-    // Arranca control del ladrón
-    window.startLadronControl(state);
+  const state = window.TagGame.creaElMapa();
+  window.TagGame.Rules.startTimer(20, ".reloj");
+  window.startPoliceAI(state);        // ← NUEVO
+  window.startLadronControl(state);
 </script>
 
 
