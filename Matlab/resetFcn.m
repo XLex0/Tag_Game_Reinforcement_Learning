@@ -2,7 +2,7 @@ function [obs, loggedSignals] = resetFcn()
 persistent tc w r
 seed = 2023014;
 addr = '127.0.0.1';
-port = 7777;                      % <- SIEMPRE el mismo puerto
+port = 7777;   
 
 tc = ensureConn(tc, addr, port, 30);
 configureTerminator(tc,"LF");

@@ -1,0 +1,4 @@
+Para ejecutar poner en tres consolas diferentes por el momento 
+npm run dev
+node .\server\bridge\ws_bridge_thief.js
+node server/bridge/ws_bridge.js

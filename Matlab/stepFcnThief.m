@@ -1,42 +1,115 @@
 function [obs, reward, done, loggedSignals] = stepFcnThief(action, loggedSignals)
 persistent tc w r currentPort
-basePort = 7777;
+addr = '127.0.0.1';
+port = 7777;
 
-% --- puerto por worker ---
-[~, port] = localWorkerPort(basePort);
+% (re)usar la misma conexión
+if isempty(tc) || ~isvalid(tc)
+    tc = tcpclient(addr, port, 'Timeout', 30);
+    configureTerminator(tc,"LF");
+    w  = @(s) writeline(tc, jsonencode(s));
+    r  = @() jsondecode(char(readline(tc)));
+end
 
-% --- (re)crear conexión si no existe o cambió el puerto ---
-if isempty(tc) || ~isvalid(tc) || isempty(currentPort) || currentPort ~= port
-    try
-        tc = tcpclient('127.0.0.1', port, 'Timeout', 30);
-        configureTerminator(tc,"LF");
-        w  = @(s) writeline(tc, jsonencode(s));
-        r  = @() jsondecode(char(readline(tc)));
-        currentPort = port;
-    catch ME
-        error("stepFcnThief:SocketError", "No se pudo conectar a %s:%d -> %s", ...
-              '127.0.0.1', port, ME.message);
+
+% ---- Parseo de acción del ladrón (1x2) ----
+if iscell(action), aT = double(action{1}(:)).';
+else,               aT = double(action(:)).';
+end
+aP0 = [0 0];  % policías fijos (o tu policy si lo deseas)
+aP1 = [0 0];
+
+% ===== Shaping: penalizar intento de entrar a MURO =====
+wallsRC  = loggedSignals.wallsRC;     % Nx2 [row col], 1-based
+gridSize = loggedSignals.gridSize;    % escalar (G)
+wallPenalty = 0;
+
+% Estado previo (SIM units, 0-based continuas)
+lastObsSim = loggedSignals.lastObs;   % [tx; ty; p0x; p0y; p1x; p1y]
+tx_prev  = lastObsSim(1); ty_prev  = lastObsSim(2);
+p0x_prev = lastObsSim(3); p0y_prev = lastObsSim(4);
+p1x_prev = lastObsSim(5); p1y_prev = lastObsSim(6);
+
+% Destino INTENTADO por el ladrón (SIM units)
+tqx_try = tx_prev + aT(1);
+tqy_try = ty_prev + aT(2);
+
+% Pasar a celdas 1-based y acotar a [1..G]
+G = gridSize;
+tq_cell = [ min(max(round(tqy_try)+1,1), G), min(max(round(tqx_try)+1,1), G) ];
+
+if ~isempty(wallsRC)
+    if ismember(tq_cell, wallsRC, 'rows')
+        wallPenalty = wallPenalty - 0.05;
     end
 end
+% ===== fin shaping muros =====
 
-% ---- Acción del ladrón (1x2) ----
-if iscell(action)
-    aT = double(action{1}(:)).';  % 1x2
-else
-    aT = double(action(:)).';     % 1x2
-end
-
-% (opcional) shaping con wallsRC/gridSize:
-% wallsRC  = loggedSignals.wallsRC;
-% gridSize = loggedSignals.gridSize;
-
-w(struct('cmd','step','aThief',aT,'aP0',[0 0],'aP1',[0 0],'n',12,'dt',0.02));
+% ---- Paso del simulador vía TCP ----
+w(struct('cmd','step','aThief',aT,'aP0',aP0,'aP1',aP1,'n',12,'dt',0.02));
 C = r();
 
-tmax  = 10;
-done  = logical(C.info.captured || C.info.t >= tmax);
-reward = double(~done)*0.001 - double(C.info.captured);
+% ---- Terminación y recompensa (ladrón) ----
+tmax = 35;
+done = logical(C.info.captured || C.info.t >= tmax);
 
-v = [C.obs.thief, C.obs.p0, C.obs.p1];   % 1x6
-obs = reshape(double(v),[6,1]);          % 6x1
+% Base: +0.001 por paso vivo, -1 por captura, + wallPenalty
+reward = double(~done)*0.001 - double(C.info.captured) + wallPenalty;
+
+% ===== DISTANCIA: shaping por ALEJARSE de los policías =====
+% Distancias previas (normalizadas por diag del grid)
+d0_prev = hypot(p0x_prev - tx_prev, p0y_prev - ty_prev);
+d1_prev = hypot(p1x_prev - tx_prev, p1y_prev - ty_prev);
+d0_prev_s = d0_prev / (sqrt(2)*double(C.info.gridSize));
+d1_prev_s = d1_prev / (sqrt(2)*double(C.info.gridSize));
+d_prev_avg = 0.5*(d0_prev_s + d1_prev_s);
+
+% Distancias actuales (SIM units)
+tx = C.obs.thief(1); ty = C.obs.thief(2);
+p0x = C.obs.p0(1);   p0y = C.obs.p0(2);
+p1x = C.obs.p1(1);   p1y = C.obs.p1(2);
+
+d0 = hypot(p0x - tx, p0y - ty);
+d1 = hypot(p1x - tx, p1y - ty);
+
+% Normalizadas
+Gsim  = double(C.info.gridSize);
+d0_s  = d0 / (sqrt(2)*Gsim);
+d1_s  = d1 / (sqrt(2)*Gsim);
+d_curr_avg = 0.5*(d0_s + d1_s);
+
+% Para el ladrón: delta positivo si SE ALEJA
+delta_avg = d_curr_avg - d_prev_avg;
+
+% Peso y clip por paso
+kDist = 0.25;                       % simétrico al de Police
+delta_clipped = max(min(delta_avg, 0.2), -0.2);
+reward = reward + kDist * delta_clipped;
+% ===== fin DISTANCIA =====
+
+% ===== Anti-stall: penaliza quedarse quieto =====
+mT = hypot(tx - tx_prev, ty - ty_prev);
+stall_eps = 1e-3;
+stall_pen = 0.02;
+if mT < stall_eps
+    reward = reward - stall_pen;
+end
+% ===== fin Anti-stall =====
+
+% Bonus por sobrevivir al timeout (si NO fue capturado)
+if ~C.info.captured && C.info.t >= tmax
+    rSurviveBonus = 1.5;  % simétrico a la penalización de Police por timeout
+    reward = reward + rSurviveBonus;
+end
+
+% ---- Observación: posiciones ESCALADAS + d0_s, d1_s ----
+tx_s  = tx  / Gsim; ty_s  = ty  / Gsim;
+p0x_s = p0x / Gsim; p0y_s = p0y / Gsim;
+p1x_s = p1x / Gsim; p1y_s = p1y / Gsim;
+
+v   = [tx_s, ty_s, p0x_s, p0y_s, p1x_s, p1y_s, d0_s, d1_s];  % 1x8 escalado
+obs = reshape(double(v), [8,1]);
+
+% Guardar lastObs en SIM units (no escaladas) para el shaping del próximo step
+loggedSignals.lastObs = reshape(double([tx, ty, p0x, p0y, p1x, p1y]), [6,1]);
 end

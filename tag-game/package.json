@@ -3,10 +3,13 @@
   "version": "1.0.0",
   "description": "Juego Tag multijugador con WebSockets",
   "type": "module",
+  "private": true,
   "scripts": {
     "dev": "npx http-server server/public -p 8080 -c-1",
     "start": "npx http-server server/public -p 8080 -c-1",
-    "bridge": "node server/bridge/ws_bridge.js"
+    "bridge": "node server/bridge/ws_bridge.js",
+    "bridge:thief": "node server/bridge/ws_bridge_thief.js",
+    "bridges": "node server/bridge/ws_bridge.js & node server/bridge/ws_bridge_thief.js"
   },
   "keywords": ["tag", "game", "websocket", "multiplayer"],
   "license": "MIT",

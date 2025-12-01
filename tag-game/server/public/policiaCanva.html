@@ -21,10 +21,11 @@
 <script src="rulesCore.js"></script>
 <script src="rulesUi.js"></script>
 <script src="movimientoPolicia.js"></script>
+<script src="thiefIA.js"></script>
 <script>
     const state = window.TagGame.creaElMapa();
     window.TagGame.Rules.startTimer(20, ".reloj");
-    // Control dual: flechas -> policias[0], WASD -> policias[1]
+     window.startThiefAI(state);
     window.startPoliciasControl(state);
 </script>
 

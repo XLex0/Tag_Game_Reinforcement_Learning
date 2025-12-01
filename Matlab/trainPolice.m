@@ -12,7 +12,9 @@ criticNetP = [
     featureInputLayer(numObsP,'Normalization','none','Name','state')
     fullyConnectedLayer(256)
     reluLayer
-    fullyConnectedLayer(256)
+    fullyConnectedLayer(200)
+    reluLayer
+    fullyConnectedLayer(128)
     reluLayer
     fullyConnectedLayer(numActP,'Name','Qout')];
 
@@ -73,3 +75,6 @@ trainOptsP = rlTrainingOptions( ...
 
 %% ==== 8) Entrenamiento ====
 statsP = train(agentPolice, envPolice, trainOptsP);
+
+saveAgentVersioned(agentPolice, 'agents_police','agent_police');
+
