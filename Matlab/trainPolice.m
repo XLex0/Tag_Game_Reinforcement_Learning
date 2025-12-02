@@ -1,4 +1,21 @@
-gpuDevice(1);
+%% ==== 0) Detectar si hay GPU disponible ====
+useGPU = false;
+try
+    g = gpuDevice;                    % intenta usar la GPU por defecto
+    fprintf('Usando GPU: %s\n', g.Name);
+    useGPU = true;
+catch ME
+    % MessageID inventado: 'GPU:Fallback'
+    warning('GPU:Fallback', ...
+        'No se pudo usar GPU, se entrenará en CPU.\nDetalle: %s', ME.message);
+    useGPU = false;
+end
+
+if useGPU
+    deviceStr = "gpu";
+else
+    deviceStr = "cpu";
+end
 
 %% ==== 1) Crear entorno del equipo policía ====
 envPolice = createEnvPolice();
@@ -25,13 +42,13 @@ if isempty(d)
         reluLayer
         fullyConnectedLayer(numActP,'Name','Qout')];
 
-    criticOpts = rlRepresentationOptions('UseDevice','gpu');
-    criticP = rlQValueRepresentation( ...
-        criticNetP, ...
-        obsInfoP, ...
-        actInfoP, ...
-        'Observation', {'state'}, ...
-        criticOpts);
+criticOpts = rlRepresentationOptions('UseDevice', deviceStr);
+criticP = rlQValueRepresentation( ...
+    criticNetP, ...
+    obsInfoP, ...
+    actInfoP, ...
+    'Observation', {'state'}, ...
+    criticOpts);
 
     agentOptsP = rlDQNAgentOptions;
     agentOptsP.UseDoubleDQN = true;

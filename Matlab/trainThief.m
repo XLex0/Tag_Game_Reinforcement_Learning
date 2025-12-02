@@ -1,6 +1,24 @@
 % trainThief.m  -- script, NO función
 
-gpuDevice(1);
+%% ==== 0) Detectar si hay GPU disponible ====
+useGPU = false;
+try
+    g = gpuDevice;                    % intenta usar la GPU por defecto
+    fprintf('Usando GPU: %s\n', g.Name);
+    useGPU = true;
+catch ME
+    % MessageID inventado: 'GPU:Fallback'
+    warning('GPU:Fallback', ...
+        'No se pudo usar GPU, se entrenará en CPU.\nDetalle: %s', ME.message);
+    useGPU = false;
+end
+
+if useGPU
+    deviceStr = "gpu";
+else
+    deviceStr = "cpu";
+end
+
 
 %% ==== 1) Crear entorno del ladrón ====
 envThief = createEnvThief();   % obs 8x1: [tx ty p0x p0y p1x p1y d0 d1]
@@ -26,14 +44,13 @@ if isempty(d)
         fullyConnectedLayer(64)
         reluLayer
         fullyConnectedLayer(numActT,'Name','Qout')];
-
-    criticOptsT = rlRepresentationOptions('UseDevice','gpu');
-    criticT = rlQValueRepresentation( ...
-        criticNetT, ...
-        obsInfoT, ...
-        actInfoT, ...
-        'Observation', {'state'}, ...
-        criticOptsT);
+criticOpts = rlRepresentationOptions('UseDevice', deviceStr);
+criticP = rlQValueRepresentation( ...
+    criticNetP, ...
+    obsInfoP, ...
+    actInfoP, ...
+    'Observation', {'state'}, ...
+    criticOpts);
 
     agentOptsT = rlDQNAgentOptions;
     agentOptsT.UseDoubleDQN = true;
