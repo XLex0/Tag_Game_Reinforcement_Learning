@@ -1,0 +1,6 @@
+*.log
+*.tmp
+.DS_Store
+node_modules/
+agents_police/*.m 
+agents_thief/*.m

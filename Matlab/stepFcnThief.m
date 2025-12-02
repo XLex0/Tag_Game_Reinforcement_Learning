@@ -1,5 +1,5 @@
 function [obs, reward, done, loggedSignals] = stepFcnThief(action, loggedSignals)
-persistent tc w r currentPort
+persistent tc w r policeAgent warnedNoPolice
 addr = '127.0.0.1';
 port = 7777;
 
@@ -11,15 +11,12 @@ if isempty(tc) || ~isvalid(tc)
     r  = @() jsondecode(char(readline(tc)));
 end
 
-
 % ---- Parseo de acción del ladrón (1x2) ----
 if iscell(action), aT = double(action{1}(:)).';
 else,               aT = double(action(:)).';
 end
-aP0 = [0 0];  % policías fijos (o tu policy si lo deseas)
-aP1 = [0 0];
 
-% ===== Shaping: penalizar intento de entrar a MURO =====
+% ===== Estado previo =====
 wallsRC  = loggedSignals.wallsRC;     % Nx2 [row col], 1-based
 gridSize = loggedSignals.gridSize;    % escalar (G)
 wallPenalty = 0;
@@ -30,6 +27,70 @@ tx_prev  = lastObsSim(1); ty_prev  = lastObsSim(2);
 p0x_prev = lastObsSim(3); p0y_prev = lastObsSim(4);
 p1x_prev = lastObsSim(5); p1y_prev = lastObsSim(6);
 
+%% ===== Acción de los policías (agente entrenado o fijos) =====
+aP0 = [0 0];  % por defecto, policías quietos
+aP1 = [0 0];
+
+try
+    % Cargar agente de policía una sola vez (persistente)
+    if isempty(policeAgent)
+        [policeAgent, ~] = pickAgentWeighted('agents_police', 'agent_police');
+    end
+
+    if ~isempty(policeAgent)
+        % Construir observación como en el entorno de Police:
+        % [tx ty p0x p0y p1x p1y d0 d1] escalados
+        Gsim = double(gridSize);
+
+        d0_prev = hypot(p0x_prev - tx_prev, p0y_prev - ty_prev);
+        d1_prev = hypot(p1x_prev - tx_prev, p1y_prev - ty_prev);
+        d0_prev_s = d0_prev / (sqrt(2)*Gsim);
+        d1_prev_s = d1_prev / (sqrt(2)*Gsim);
+
+        tx_s_prev  = tx_prev  / Gsim;
+        ty_s_prev  = ty_prev  / Gsim;
+        p0x_s_prev = p0x_prev / Gsim;
+        p0y_s_prev = p0y_prev / Gsim;
+        p1x_s_prev = p1x_prev / Gsim;
+        p1y_s_prev = p1y_prev / Gsim;
+
+        obsPolice = [ ...
+            tx_s_prev; ty_s_prev; ...
+            p0x_s_prev; p0y_s_prev; ...
+            p1x_s_prev; p1y_s_prev; ...
+            d0_prev_s; d1_prev_s];
+
+        % Pedir acción al agente de Police
+        [aRaw, ~] = getAction(policeAgent, {obsPolice});
+
+        if iscell(aRaw)
+            aP = double(aRaw{1}(:)).';
+        else
+            aP = double(aRaw(:)).';
+        end
+
+        % aP debe ser 1x4: [dx0 dy0 dx1 dy1]
+        if numel(aP) >= 4
+            aP0 = aP(1,1:2);
+            aP1 = aP(1,3:4);
+        end
+    end
+
+catch ME
+    % Si no hay modelos aún o cualquier fallo: policías fijos
+    if isempty(warnedNoPolice) || ~warnedNoPolice
+        warning('stepFcnPolice:NoPoliceAgent', ...
+            'No se pudo usar agente de Police. Se usan policías fijos [0 0]. Detalle: %s', ...
+            ME.message);
+        warnedNoPolice = true;
+    end
+    aP0 = [0 0];
+    aP1 = [0 0];
+end
+
+
+
+%% ===== Shaping: penalizar intento de entrar a MURO (para el ladrón) =====
 % Destino INTENTADO por el ladrón (SIM units)
 tqx_try = tx_prev + aT(1);
 tqy_try = ty_prev + aT(2);
